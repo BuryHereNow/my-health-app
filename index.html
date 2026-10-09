@@ -1,0 +1,2364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>健康数据助理 V4.0</title>
+<!--
+  ============================================================
+  私人 AI 健康数据助理 V4.0 (PC + Mobile Web App)
+  单文件 HTML + CSS + JS，无构建工具，双击可用。
+
+  ⚠️ CORS 说明：
+  若以 file:// 协议双击打开，请求 https API 可能遇到 CORS 跨域错误。
+  推荐运行方式：
+    1) VS Code 安装 "Live Server" 插件，右键 -> Open with Live Server
+    2) 在文件所在目录运行：python -m http.server 8000
+       然后浏览器访问 http://localhost:8000
+  ============================================================
+-->
+<style>
+  /* ========== CSS 变量 ========== */
+  :root {
+    --sidebar-w: 260px;
+    --sidebar-w-collapsed: 60px;
+    --bg: #f2f2f7;
+    --surface: #ffffff;
+    --border: #e5e5ea;
+    --text: #1c1c1e;
+    --text-sub: #8e8e93;
+    --accent: #007aff;
+    --accent-hover: #0066d6;
+    --cal: #ff9500;
+    --pro: #34c759;
+    --danger: #ff3b30;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; }
+
+  /* ========== 布局容器 ========== */
+  .app {
+    display: flex;
+    height: 100vh;
+    height: 100dvh;
+    width: 100vw;
+    position: relative;
+  }
+
+  /* ========== 左侧边栏 ========== */
+  .sidebar {
+    width: var(--sidebar-w);
+    min-width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    transition: width 0.25s ease, min-width 0.25s ease, transform 0.25s ease;
+    overflow: hidden;
+    z-index: 50;
+  }
+  /* 侧栏内部可独立滚动，底部留白防止按钮截断 */
+  .sidebar-inner {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 14px 14px 24px;  /* 底部 padding-bottom 防止截断 */
+  }
+  .sidebar-inner::-webkit-scrollbar { width: 4px; }
+  .sidebar-inner::-webkit-scrollbar-thumb { background: #d1d1d6; border-radius: 2px; }
+
+  /* 折叠态：PC 端收起为图标条 */
+  .app.collapsed .sidebar {
+    width: var(--sidebar-w-collapsed);
+    min-width: var(--sidebar-w-collapsed);
+  }
+  .app.collapsed .sidebar .hide-when-collapsed { display: none !important; }
+  .app.collapsed .sidebar .side-btn {
+    padding: 10px 0;
+    text-align: center;
+  }
+  .app.collapsed .sidebar .sidebar-section-title {
+    text-align: center;
+    font-size: 0;
+    height: 8px;
+    margin: 10px 0;
+  }
+  .app.collapsed .sidebar .logo { text-align: center; }
+
+  /* 侧栏头部：Logo + 折叠按钮 */
+  .sidebar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .logo {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+  }
+  .collapse-btn, .hamburger-btn {
+    width: 30px; height: 30px;
+    border: none;
+    background: transparent;
+    color: var(--text-sub);
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .collapse-btn:hover, .hamburger-btn:hover { background: var(--bg); }
+  .app.collapsed .collapse-btn { transform: rotate(180deg); }
+  .hamburger-btn { display: none; }  /* 移动端显示 */
+
+  .sidebar-section-title {
+    font-size: 11px;
+    color: var(--text-sub);
+    margin: 16px 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+
+  /* ========== 目标面板 ========== */
+  .goal-panel {
+    background: #f9f9fb;
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .goal-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .goal-row .label { font-size: 12px; color: var(--text-sub); }
+  .goal-row .value { font-size: 16px; font-weight: 700; color: var(--text); }
+  .goal-row .value.target { color: var(--accent); }
+  .goal-row .value.diff { font-size: 12px; color: var(--text-sub); font-weight: 500; }
+  .goal-progress-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    margin: 8px 0;
+    overflow: hidden;
+  }
+  .goal-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #5ac8fa);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+  }
+  .goal-meta {
+    font-size: 11px;
+    color: var(--text-sub);
+    line-height: 1.5;
+  }
+  .goal-meta .highlight { color: var(--accent); font-weight: 600; }
+  .no-weight-hint {
+    font-size: 11px;
+    color: var(--text-sub);
+    text-align: center;
+    padding: 10px 0;
+    font-style: italic;
+    line-height: 1.6;
+  }
+
+  /* ========== 今日进度条 ========== */
+  .progress-item { margin-bottom: 10px; }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 4px;
+    color: #3c3c43;
+  }
+  .progress-bar {
+    width: 100%;
+    height: 7px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s ease;
+  }
+  .progress-fill.cal { background: var(--cal); }
+  .progress-fill.pro { background: var(--pro); }
+
+  /* ========== 图表 ========== */
+  .chart-wrap {
+    background: #f9f9fb;
+    border-radius: 8px;
+    padding: 8px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .chart-wrap canvas {
+    width: 100%;
+    display: block;
+    cursor: crosshair;
+  }
+  #weightCanvas { height: 100px; }
+  #calCanvas { height: 90px; }
+  .chart-empty {
+    font-size: 11px;
+    color: var(--text-sub);
+    text-align: center;
+    padding: 24px 0;
+  }
+  /* Canvas 悬停提示 */
+  .chart-tooltip {
+    position: absolute;
+    background: rgba(28,28,30,0.92);
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 10;
+    display: none;
+    line-height: 1.4;
+  }
+
+  /* ========== 侧栏按钮 ========== */
+  .side-btn {
+    display: block;
+    width: 100%;
+    padding: 9px 12px;
+    margin-bottom: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .side-btn:hover { background: var(--bg); }
+  .side-btn.danger { color: var(--danger); border-color: #ffd6d2; }
+  .side-btn.danger:hover { background: #fff0ef; }
+  .side-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .side-btn.primary:hover { background: var(--accent-hover); }
+
+  /* ========== 右侧聊天区 ========== */
+  .chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    min-width: 0;
+    min-height: 0;
+  }
+  .chat-header {
+    height: 52px;
+    min-height: 52px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .chat-header-title {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .chat-header-model {
+    font-size: 11px;
+    color: var(--text-sub);
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+  }
+  .header-actions { display: flex; gap: 4px; }
+  .header-btn {
+    width: 32px; height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-sub);
+    transition: background 0.15s;
+  }
+  .header-btn:hover { background: var(--bg); color: var(--text); }
+
+  /* 聊天流 */
+  .chat-flow {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scroll-behavior: smooth;
+  }
+  .chat-flow::-webkit-scrollbar { width: 6px; }
+  .chat-flow::-webkit-scrollbar-thumb { background: #c7c7cc; border-radius: 3px; }
+
+  /* 消息气泡 */
+  .msg {
+    display: flex;
+    max-width: 78%;
+    animation: fadeIn 0.2s ease;
+  }
+  .msg.user { align-self: flex-end; justify-content: flex-end; }
+  .msg.ai { align-self: flex-start; }
+  .msg.system { align-self: center; max-width: 92%; }
+  .msg.error { align-self: center; max-width: 92%; }
+
+  .bubble {
+    padding: 10px 14px;
+    border-radius: 16px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .msg.user .bubble {
+    background: var(--accent);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.ai .bubble {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    border-bottom-left-radius: 4px;
+  }
+  .msg.system .bubble {
+    background: #fff8e6;
+    color: #8a6d00;
+    border: 1px solid #ffe8a3;
+    font-size: 13px;
+    text-align: center;
+  }
+  .msg.error .bubble {
+    background: #fff0ef;
+    color: var(--danger);
+    border: 1px solid #ffd6d2;
+    font-size: 13px;
+  }
+
+  .bubble img { max-width: 220px; border-radius: 8px; margin-top: 6px; display: block; }
+  .bubble .img-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .bubble .img-list img { max-width: 110px; margin: 0; }
+
+  /* Markdown 渲染 */
+  .bubble h1, .bubble h2, .bubble h3 { margin: 8px 0 6px; font-weight: 600; }
+  .bubble h1 { font-size: 18px; }
+  .bubble h2 { font-size: 16px; }
+  .bubble h3 { font-size: 15px; }
+  .bubble p { margin: 4px 0; }
+  .bubble ul, .bubble ol { margin: 4px 0 4px 20px; }
+  .bubble li { margin: 2px 0; }
+  .bubble code {
+    background: rgba(0,0,0,0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 13px;
+  }
+  .bubble pre {
+    background: #1c1c1e; color: #f2f2f7;
+    padding: 10px 12px; border-radius: 8px;
+    overflow-x: auto; margin: 6px 0;
+  }
+  .bubble pre code { background: transparent; color: inherit; padding: 0; }
+  .bubble strong { font-weight: 600; }
+  .msg.user .bubble code { background: rgba(255,255,255,0.25); }
+  .msg.user .bubble pre { background: rgba(0,0,0,0.25); }
+
+  .typing-cursor {
+    display: inline-block;
+    width: 7px; height: 15px;
+    background: var(--accent);
+    margin-left: 2px;
+    vertical-align: middle;
+    animation: blink 0.8s infinite;
+  }
+  @keyframes blink { 0%,50% { opacity: 1; } 51%,100% { opacity: 0; } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ========== 输入区 ========== */
+  .input-area {
+    border-top: 1px solid var(--border);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .image-previews {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 8px; min-height: 0;
+  }
+  .thumb-wrap {
+    position: relative;
+    width: 64px; height: 64px;
+    border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
+  .thumb-remove {
+    position: absolute; top: 2px; right: 2px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(0,0,0,0.6); color: #fff;
+    border: none; cursor: pointer; font-size: 12px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-bottom: 8px; align-items: center;
+  }
+  .tool-btn {
+    padding: 5px 10px; font-size: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface); border-radius: 6px;
+    cursor: pointer; color: #3c3c43;
+    transition: background 0.15s;
+  }
+  .tool-btn:hover { background: var(--bg); }
+  .tool-btn.quick { background: #f0f7ff; border-color: #c6e0ff; color: var(--accent); }
+  .tool-btn.quick:hover { background: #dbeaff; }
+  .tool-divider { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+
+  .input-row { display: flex; gap: 8px; align-items: flex-end; }
+  #messageInput {
+    flex: 1; resize: none;
+    min-height: 40px; max-height: 140px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 15px; line-height: 1.5;
+    font-family: inherit; outline: none;
+    transition: border-color 0.15s;
+  }
+  #messageInput:focus { border-color: var(--accent); }
+  .send-btn {
+    height: 40px; padding: 0 16px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 10px;
+    font-size: 15px; cursor: pointer;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .send-btn:hover { background: var(--accent-hover); }
+  .send-btn:disabled { background: #a7caff; cursor: not-allowed; }
+
+  .status-line {
+    font-size: 12px; color: var(--text-sub);
+    text-align: center; margin-top: 5px; min-height: 16px;
+  }
+
+  /* ========== 设置弹窗 ========== */
+  .modal-mask {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 200;
+    align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .modal-mask.show { display: flex; }
+  .modal {
+    width: 100%;
+    max-width: 480px;
+    max-height: 88vh;
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 12px;
+    padding: 22px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+  }
+  .modal h2 { font-size: 17px; margin-bottom: 14px; }
+  .modal h3 {
+    font-size: 13px; color: var(--text-sub);
+    margin: 16px 0 8px; font-weight: 600;
+  }
+  .form-group { margin-bottom: 12px; }
+  .form-group label {
+    display: block; font-size: 12px;
+    color: #3c3c43; margin-bottom: 4px;
+  }
+  .form-group input, .form-group select {
+    width: 100%; padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px; font-size: 14px; outline: none;
+    background: #fff;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+  .form-row { display: flex; gap: 12px; }
+  .form-row .form-group { flex: 1; }
+  .modal-actions {
+    display: flex; justify-content: flex-end;
+    gap: 8px; margin-top: 20px;
+  }
+  .btn {
+    padding: 8px 16px; border-radius: 6px;
+    font-size: 14px; cursor: pointer;
+    border: 1px solid var(--border); background: #fff;
+  }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.primary:hover { background: var(--accent-hover); }
+  .hint { font-size: 11px; color: var(--text-sub); margin-top: 3px; }
+
+  /* 模型切换下拉 */
+  .model-switch { position: relative; }
+  .model-menu {
+    display: none;
+    position: absolute;
+    right: 0; top: 38px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    padding: 4px;
+    z-index: 60;
+    min-width: 200px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  .model-menu.show { display: block; }
+  .model-menu optgroup, .model-menu .menu-group-title {
+    font-size: 10px;
+    color: var(--text-sub);
+    padding: 6px 8px 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .model-menu button {
+    display: block;
+    width: 100%;
+    padding: 7px 10px;
+    text-align: left;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .model-menu button:hover { background: var(--bg); }
+  .model-menu button.active { background: #f0f7ff; color: var(--accent); font-weight: 600; }
+
+  /* 移动端遮罩（抽屉打开时） */
+  .drawer-mask {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 40;
+  }
+  .drawer-mask.show { display: block; }
+
+  /* ============================================================
+     移动端响应式（宽度 ≤ 768px）
+     侧边栏变为抽屉，主区占满，输入框固定底部
+     ============================================================ */
+  @media (max-width: 768px) {
+    .sidebar {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      width: 85%;
+      max-width: 300px;
+      min-width: 0;
+      transform: translateX(-100%);
+      box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+    }
+    /* 抽屉打开 */
+    .app.drawer-open .sidebar {
+      transform: translateX(0);
+    }
+    .app.collapsed .sidebar {
+      width: 85%;
+      max-width: 300px;
+    }
+    .app.collapsed .sidebar .hide-when-collapsed { display: block !important; }
+    .app.collapsed .sidebar .side-btn {
+      padding: 9px 12px;
+      text-align: left;
+    }
+    .app.collapsed .sidebar .sidebar-section-title {
+      text-align: left;
+      font-size: 11px;
+      height: auto;
+      margin: 16px 0 8px;
+    }
+
+    .hamburger-btn { display: flex; }
+    .collapse-btn { display: none; }
+
+    .chat-main { width: 100%; }
+    .chat-flow { padding: 12px; }
+    .msg { max-width: 88%; }
+    .input-area { padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); }
+    .toolbar { gap: 4px; }
+    .tool-btn { padding: 4px 8px; font-size: 11px; }
+    #messageInput { font-size: 16px; }  /* 防止 iOS 缩放 */
+    .bubble { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="appRoot">
+  <!-- 移动端抽屉遮罩 -->
+  <div class="drawer-mask" id="drawerMask"></div>
+
+  <!-- ========== 左侧边栏 ========== -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo hide-when-collapsed">健康助理</div>
+      <div class="logo" style="display:none">健</div>
+      <button class="collapse-btn" id="btnCollapse" title="折叠/展开">◀</button>
+      <button class="hamburger-btn" id="btnHamburger" title="菜单">☰</button>
+    </div>
+
+    <div class="sidebar-inner">
+      <!-- 目标面板 -->
+      <div class="sidebar-section-title hide-when-collapsed">🎯 减脂目标</div>
+      <div class="goal-panel hide-when-collapsed" id="goalPanel">
+        <div class="goal-row">
+          <span class="label">当前体重</span>
+          <span class="value" id="curWeight">--</span>
+        </div>
+        <div class="goal-row">
+          <span class="label">目标体重</span>
+          <span class="value target" id="tgtWeight">--</span>
+        </div>
+        <div class="goal-row">
+          <span class="label">距离目标</span>
+          <span class="value diff" id="weightDiff">--</span>
+        </div>
+        <div class="goal-progress-bar">
+          <div class="goal-progress-fill" id="goalFill" style="width:0%"></div>
+        </div>
+        <div class="goal-meta" id="goalMeta">设置目标体重与日期</div>
+      </div>
+      <div class="no-weight-hint hide-when-collapsed" id="noWeightHint" style="display:none">
+        💡 暂无体重记录<br>在聊天中输入"体重XXkg"
+      </div>
+
+      <!-- 今日进度 -->
+      <div class="sidebar-section-title hide-when-collapsed">今日进度</div>
+      <div class="progress-item hide-when-collapsed">
+        <div class="progress-label">
+          <span>热量</span>
+          <span><span id="calVal">0</span> / <span id="calTarget">1800</span> kcal</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill cal" id="calFill" style="width:0%"></div></div>
+      </div>
+      <div class="progress-item hide-when-collapsed">
+        <div class="progress-label">
+          <span>蛋白质</span>
+          <span><span id="proVal">0</span> / <span id="proTarget">120</span> g</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill pro" id="proFill" style="width:0%"></div></div>
+      </div>
+
+      <!-- 图表 -->
+      <div class="sidebar-section-title hide-when-collapsed">体重趋势</div>
+      <div class="chart-wrap hide-when-collapsed">
+        <canvas id="weightCanvas"></canvas>
+        <div class="chart-tooltip" id="weightTooltip"></div>
+        <div class="chart-empty" id="weightEmpty" style="display:none">暂无数据</div>
+      </div>
+
+      <div class="sidebar-section-title hide-when-collapsed">近7天热量</div>
+      <div class="chart-wrap hide-when-collapsed">
+        <canvas id="calCanvas"></canvas>
+        <div class="chart-tooltip" id="calTooltip"></div>
+        <div class="chart-empty" id="calEmpty" style="display:none">暂无数据</div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="sidebar-section-title hide-when-collapsed">操作</div>
+      <button class="side-btn primary" id="btnDaily">📊 生成日报</button>
+      <button class="side-btn" id="btnWeekly">📈 生成周报</button>
+      <button class="side-btn" id="btnMonthly">📅 生成月报</button>
+      <button class="side-btn" id="btnYearly">🗓 生成年报</button>
+      <button class="side-btn" id="btnExport">💾 导出记录</button>
+      <button class="side-btn" id="btnImport">📥 导入记录</button>
+      <button class="side-btn danger" id="btnClear">🗑 清空历史</button>
+      <button class="side-btn" id="btnSettings">⚙️ 设置</button>
+      <input type="file" id="importFile" accept="application/json" style="display:none">
+    </div>
+  </aside>
+
+  <!-- ========== 右侧聊天区 ========== -->
+  <main class="chat-main">
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <span class="chat-header-title">健康数据助理</span>
+        <span class="chat-header-model" id="currentModelLabel">qwen3.8-flash-next-2</span>
+      </div>
+      <div class="header-actions">
+        <div class="model-switch">
+          <button class="header-btn" id="btnModelSwitch" title="切换模型">🔀</button>
+          <div class="model-menu" id="modelMenu"></div>
+        </div>
+        <button class="header-btn" id="btnHeaderSettings" title="设置">⚙️</button>
+      </div>
+    </div>
+
+    <div class="chat-flow" id="chatFlow"></div>
+
+    <div class="input-area">
+      <div class="image-previews" id="imagePreviews"></div>
+      <div class="toolbar">
+        <button class="tool-btn quick" data-quick="今日午餐吃了牛肉拌面">🍜 今日午餐</button>
+        <button class="tool-btn quick" data-quick="今日运动：">🏃 今日运动</button>
+        <button class="tool-btn quick" data-quick="早八没吃早饭">⏰ 早八没吃</button>
+        <button class="tool-btn quick" data-quick="爬了4次7楼">🪜 爬楼4次</button>
+        <button class="tool-btn quick" data-quick="做了3组俯卧撑">💪 俯卧撑3组</button>
+        <button class="tool-btn quick" data-quick="体重">⚖️ 体重</button>
+        <span class="tool-divider"></span>
+        <button class="tool-btn" id="btnUploadImg">📎 图片</button>
+        <button class="tool-btn" id="btnPasteImg">📋 粘贴</button>
+        <button class="tool-btn" id="btnVoice">🎤 语音</button>
+        <!-- capture="environment" 移动端调起后置摄像头 -->
+        <input type="file" id="imgInput" accept="image/*" capture="environment" multiple style="display:none">
+      </div>
+      <div class="input-row">
+        <textarea id="messageInput" placeholder="记录饮食或运动..."></textarea>
+        <button class="send-btn" id="btnSend">发送</button>
+      </div>
+      <div class="status-line" id="statusLine"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ========== 设置弹窗 ========== -->
+<div class="modal-mask" id="settingsModal">
+  <div class="modal">
+    <h2>设置</h2>
+
+    <h3>🔌 API 配置</h3>
+    <div class="form-group">
+      <label>Base URL</label>
+      <input type="text" id="setBaseUrl" placeholder="https://api.llm.ustc.edu.cn/v1">
+    </div>
+    <div class="form-group">
+      <label>API Key</label>
+      <input type="password" id="setApiKey" placeholder="sk-...">
+    </div>
+    <div class="form-group">
+      <label>主力文本模型</label>
+      <select id="setModel">
+        <optgroup label="主力文本模型">
+          <option value="qwen3.8-flash-next-2">qwen3.8-flash-next-2</option>
+          <option value="deepseek-v4-flash-ascend1">deepseek-v4-flash-ascend1</option>
+          <option value="qwen3.8-chat">qwen3.8-chat</option>
+          <option value="qwen3.8-flash-next">qwen3.8-flash-next</option>
+          <option value="deepseek-flash">deepseek-flash</option>
+          <option value="deepseek-flash-2">deepseek-flash-2</option>
+          <option value="glm-5.3-flash">glm-5.3-flash</option>
+          <option value="smart/default">smart/default</option>
+          <option value="qwen-chat">qwen-chat</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>深度推理模型（月报/年报）</label>
+      <select id="setReasonerModel">
+        <optgroup label="深度推理模型">
+          <option value="qwen3.8-reasoner">qwen3.8-reasoner</option>
+          <option value="qwen-reasoner">qwen-reasoner</option>
+          <option value="smart/reasoning">smart/reasoning</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>OCR 模型（图片识别）</label>
+      <select id="setOcrModel">
+        <optgroup label="多模态/OCR模型">
+          <option value="unlimited-ocr">unlimited-ocr</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <h3>🎯 个人信息与目标</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>身高 (cm)</label>
+        <input type="number" id="setHeight" value="171">
+      </div>
+      <div class="form-group">
+        <label>年龄</label>
+        <input type="number" id="setAge" value="18">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>目标体重 (kg)</label>
+        <input type="number" id="setTargetWeight" value="70" step="0.1">
+      </div>
+      <div class="form-group">
+        <label>期望达成日期</label>
+        <input type="date" id="setTargetDate">
+      </div>
+    </div>
+
+    <h3>📊 每日目标</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>每日热量目标 (kcal)</label>
+        <input type="number" id="setCalTarget" value="1800">
+        <div class="hint" id="calHint">根据 BMR 自动推算</div>
+      </div>
+      <div class="form-group">
+        <label>每日蛋白质目标 (g)</label>
+        <input type="number" id="setProTarget" value="120">
+      </div>
+    </div>
+    <div class="hint" id="bmrInfo">BMR：-- kcal</div>
+
+    <div class="modal-actions">
+      <button class="btn" id="setCancel">取消</button>
+      <button class="btn primary" id="setSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   1. 配置管理 (localStorage)
+   ============================================================ */
+const DEFAULT_CONFIG = {
+  baseUrl: 'https://api.llm.ustc.edu.cn/v1',
+  apiKey: '',
+  model: 'qwen3.8-flash-next-2',
+  reasonerModel: 'qwen3.8-reasoner',
+  ocrModel: 'unlimited-ocr',
+  height: 171,
+  age: 18,
+  targetWeight: 70,
+  targetDate: '',
+  calTarget: 1800,
+  proTarget: 120,
+  startWeight: 91.75   // 起始体重，用于进度条计算
+};
+
+const Config = {
+  get() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('laok_config') || '{}');
+      return { ...DEFAULT_CONFIG, ...saved };
+    } catch {
+      return { ...DEFAULT_CONFIG };
+    }
+  },
+  set(cfg) {
+    localStorage.setItem('laok_config', JSON.stringify(cfg));
+  }
+};
+
+/* ============================================================
+   2. 当日状态 (localStorage) —— 进度条数据唯一真相源
+   绝不使用正则从自然语言猜数字，只从 AI 返回的 <data> JSON 读取
+   ============================================================ */
+const DEFAULT_STATE = {
+  cal: 0,        // 今日累计热量
+  protein: 0,    // 今日累计蛋白质
+  weight: null,  // 最新体重
+  date: ''       // 状态对应的日期（YYYY-MM-DD）
+};
+
+const State = {
+  get() {
+    try {
+      const s = JSON.parse(localStorage.getItem('laok_state') || '{}');
+      const today = getTodayKey();
+      // 如果日期不是今天，重置热量和蛋白质（但保留体重）
+      if (s.date !== today) {
+        s.cal = 0;
+        s.protein = 0;
+        s.date = today;
+      }
+      return { ...DEFAULT_STATE, ...s };
+    } catch {
+      return { ...DEFAULT_STATE, date: getTodayKey() };
+    }
+  },
+  set(s) {
+    localStorage.setItem('laok_state', JSON.stringify(s));
+  },
+  // 更新部分字段（不覆盖未提供的字段）
+  update(partial) {
+    const cur = State.get();
+    const next = { ...cur, ...partial, date: getTodayKey() };
+    State.set(next);
+    return next;
+  }
+};
+
+/* ============================================================
+   3. IndexedDB 封装 —— 全量聊天记录
+   ============================================================ */
+class ChatDB {
+  constructor() {
+    this.dbName = 'laok_chat';
+    this.storeName = 'messages';
+    this.db = null;
+  }
+  open() {
+    return new Promise((resolve, reject) => {
+      if (this.db) return resolve(this.db);
+      const req = indexedDB.open(this.dbName, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName, { keyPath: 'id', autoIncrement: true });
+        }
+      };
+      req.onsuccess = () => { this.db = req.result; resolve(this.db); };
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async getAll() {
+    await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(this.storeName, 'readonly');
+      const req = tx.objectStore(this.storeName).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async add(msg) {
+    await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(this.storeName, 'readwrite');
+      const req = tx.objectStore(this.storeName).add(msg);
+      req.onsuccess = () => { msg.id = req.result; resolve(msg); };
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async clear() {
+    await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(this.storeName, 'readwrite');
+      const req = tx.objectStore(this.storeName).clear();
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async bulkAdd(messages) {
+    await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(this.storeName, 'readwrite');
+      const store = tx.objectStore(this.storeName);
+      messages.forEach(m => store.add(m));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+}
+const db = new ChatDB();
+
+/* ============================================================
+   4. 工具函数：日期 / BMR
+   ============================================================ */
+function pad(n) { return String(n).padStart(2, '0'); }
+function getTodayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function getDateKey(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function getWeekKey() {
+  const d = new Date();
+  const day = d.getDay() || 7;
+  d.setDate(d.getDate() - (day - 1));
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function getMonthKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+}
+function getYearKey() {
+  return String(new Date().getFullYear());
+}
+
+/* 精确计算两日期之间的天数（跨年准确）
+   用 Date 对象的时间戳差值，除以一天毫秒数并四舍五入 */
+function calcDaysBetween(dateStr1, dateStr2) {
+  const d1 = new Date(dateStr1 + 'T00:00:00');
+  const d2 = new Date(dateStr2 + 'T00:00:00');
+  const diffMs = d2.getTime() - d1.getTime();
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+}
+
+/* BMR 计算 (Mifflin-St Jeor, 男性)
+   BMR = 10 × 体重 + 6.25 × 身高 - 5 × 年龄 + 5 */
+function calcBMR(weightKg, heightCm, age) {
+  return 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
+}
+/* 每日推荐热量 = BMR × 1.2 - 500，最低 1500 kcal */
+function calcRecommendedCalories(weightKg, heightCm, age) {
+  const bmr = calcBMR(weightKg, heightCm, age);
+  const rec = bmr * 1.2 - 500;
+  return Math.max(1500, Math.round(rec));
+}
+
+/* ============================================================
+   5. System Prompt —— 温和专业的健康数据助理
+   关键：每次回复末尾必须输出 <data>{...}</data> 供前端解析
+   ============================================================ */
+function buildSystemPrompt() {
+  const cfg = Config.get();
+  const state = State.get();
+  const curW = state.weight || cfg.startWeight;
+  const tgtW = cfg.targetWeight;
+  const tgtDate = cfg.targetDate;
+  const daysLeft = tgtDate ? calcDaysBetween(getTodayKey(), tgtDate) : null;
+  const kgLeft = (curW - tgtW).toFixed(1);
+
+  let goalInfo = `\n# 用户减脂目标\n- 当前体重：${curW} kg\n- 目标体重：${tgtW} kg\n- 距离目标：${kgLeft} kg`;
+  if (daysLeft !== null && daysLeft > 0) {
+    goalInfo += `\n- 期望达成：${tgtDate}（还剩 ${daysLeft} 天）`;
+  }
+  goalInfo += `\n- 今日已摄入热量：${state.cal} kcal，蛋白质 ${state.protein} g`;
+
+  return `# Role
+你是用户的健康数据助理。用户是18岁男性，身高${cfg.height}cm，体重${curW}kg，目标减脂。你温和、专业、理性、鼓励式，绝不使用激将法或毒舌。
+${goalInfo}
+
+# 职责
+1. 精准计算用户每次饮食的热量和蛋白质，并累加到今日总量。
+2. 记录用户提到的体重。
+3. 评估运动消耗，给出温和可行的建议。
+4. 如果用户只是问某食物热量，直接估算回答即可，不必套模板。
+
+# 数据输出规则（极其重要，必须严格遵守）
+每次回复的最后，必须且只能输出一段结构化数据，格式如下：
+<data>{"cal": 今日累计热量整数, "protein": 今日累计蛋白质整数, "weight": 用户最新体重浮点数或null}</data>
+- cal = 今日累计摄入总热量（包含本次），整数
+- protein = 今日累计摄入总蛋白质（包含本次），整数
+- weight = 用户最新体重kg（如果本次或历史提到体重则填写，否则填null）
+- 只输出一次，放在回复最后一行，前面不要加任何文字说明
+
+# 风格
+- 温和、简洁、专业，不寒暄不废话。
+- 鼓励为主，如"今天控制得不错，继续保持"。
+- 涉及数据必须准确。`;
+}
+
+/* ============================================================
+   6. 极简 Markdown 渲染器
+   ============================================================ */
+function renderMarkdown(text) {
+  if (!text) return '';
+  // 先剥离 <data>...</data> 块（不渲染给用户看）
+  text = text.replace(/<data>[\s\S]*?<\/data>/g, '').trimEnd();
+  if (!text) return '';
+
+  const codeBlocks = [];
+  text = text.replace(/```[\s\S]*?```/g, m => {
+    codeBlocks.push(m);
+    return `\x00CODEBLOCK${codeBlocks.length - 1}\x00`;
+  });
+  text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  text = text.replace(/^#{3}\s+(.+)$/gm, '<h3>$1</h3>');
+  text = text.replace(/^#{2}\s+(.+)$/gm, '<h2>$1</h2>');
+  text = text.replace(/^#{1}\s+(.+)$/gm, '<h1>$1</h1>');
+  text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  text = text.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
+  text = text.replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
+  text = text.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
+  text = text.replace(/(<li>.*<\/li>\n?)+/g, m => {
+    if (m.includes('<ul>')) return m;
+    return `<ol>${m}</ol>`;
+  });
+  text = text.replace(/\x00CODEBLOCK(\d+)\x00/g, (m, i) => {
+    const raw = codeBlocks[parseInt(i)];
+    const inner = raw.replace(/^```(\w*)\n?/, '').replace(/```$/, '').replace(/\n$/, '');
+    return `<pre><code>${inner}</code></pre>`;
+  });
+  text = text.split(/\n{2,}/).map(p => {
+    p = p.trim();
+    if (!p) return '';
+    if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<ol') || p.startsWith('<pre')) return p;
+    return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+  }).join('');
+  return text;
+}
+
+/* ============================================================
+   7. 结构化数据解析 —— 从 AI 回复中提取 <data> JSON
+   这是进度条数据的唯一来源，绝不使用正则猜数字
+   ============================================================ */
+function parseStructuredData(text) {
+  // 匹配 <data>{...}</data>
+  const match = text.match(/<data>([\s\S]*?)<\/data>/);
+  if (!match) return null;
+  try {
+    const data = JSON.parse(match[1].trim());
+    return {
+      cal: Number.isFinite(data.cal) ? Math.round(data.cal) : null,
+      protein: Number.isFinite(data.protein) ? Math.round(data.protein) : null,
+      weight: Number.isFinite(data.weight) ? data.weight : null
+    };
+  } catch {
+    return null;
+  }
+}
+
+/* ============================================================
+   8. 安全请求 —— 429 自动重试
+   ============================================================ */
+async function safeFetch(url, options, retries = 3) {
+  const delay = (ms) => new Promise(r => setTimeout(r, ms));
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.status === 429) {
+        setStatus('助理正在思考... (排队中)');
+        await delay(3000);
+        continue;
+      }
+      return res;
+    } catch (err) {
+      if (i < retries - 1) { await delay(1000); continue; }
+      throw err;
+    }
+  }
+  return fetch(url, options);
+}
+
+/* ============================================================
+   9. OCR 图片识别
+   ============================================================ */
+async function ocrImage(base64Data) {
+  const cfg = Config.get();
+  const url = cfg.baseUrl.replace(/\/$/, '') + '/chat/completions';
+  const body = {
+    model: cfg.ocrModel,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: '请提取图片中所有可见文字，包括食物名称、配料表、营养成分表、菜单等。只输出文字，不要解释。' },
+        { type: 'image_url', image_url: { url: base64Data } }
+      ]
+    }],
+    max_tokens: 1000
+  };
+  const res = await safeFetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`OCR失败 (${res.status}): ${errText}`);
+  }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+/* ============================================================
+   10. 流式对话 —— 打字机效果（全量历史，绝不截断）
+   ============================================================ */
+async function streamChat(messages, onDelta, modelOverride) {
+  const cfg = Config.get();
+  const url = cfg.baseUrl.replace(/\/$/, '') + '/chat/completions';
+  const model = modelOverride || cfg.model;
+  const body = { model, stream: true, messages };
+  const res = await safeFetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`请求失败 (${res.status}): ${errText}`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith('data:')) continue;
+      const jsonStr = trimmed.slice(5).trim();
+      if (jsonStr === '[DONE]') return;
+      try {
+        const data = JSON.parse(jsonStr);
+        const delta = data.choices?.[0]?.delta?.content || '';
+        if (delta) onDelta(delta);
+      } catch (e) {}
+    }
+  }
+}
+
+/* ============================================================
+   11. 应用状态
+   ============================================================ */
+let allMessages = [];
+let pendingImages = [];
+let isStreaming = false;
+
+const chatFlow = document.getElementById('chatFlow');
+const messageInput = document.getElementById('messageInput');
+const imagePreviews = document.getElementById('imagePreviews');
+const statusLine = document.getElementById('statusLine');
+
+/* ============================================================
+   12. 体重数据提取 —— 从聊天记录中正则匹配（仅用于历史图表，不用作进度条）
+   ============================================================ */
+function extractWeights() {
+  const points = [];
+  for (const m of allMessages) {
+    const content = m.content || '';
+    const matches = content.match(/(\d{2,3}(?:\.\d{1,2})?)\s*(?:kg|公斤|千克)/g);
+    if (matches) {
+      for (const match of matches) {
+        const num = parseFloat(match);
+        if (num >= 40 && num <= 200) {
+          points.push({ t: m.timestamp, w: num });
+        }
+      }
+    }
+  }
+  return points.sort((a, b) => a.t - b.t);
+}
+function getLatestWeight() {
+  // 优先用 State 中的体重（来自 <data> 解析），其次从历史提取
+  const s = State.get();
+  if (s.weight) return s.weight;
+  const pts = extractWeights();
+  return pts.length ? pts[pts.length - 1].w : null;
+}
+
+/* ============================================================
+   13. 加载与渲染
+   ============================================================ */
+async function loadMessages() {
+  allMessages = await db.getAll();
+  renderAllMessages();
+  refreshAllPanels();
+}
+
+function buildApiMessages(processedText) {
+  // ⚠️ 全量历史，绝不截断
+  const msgs = [{ role: 'system', content: buildSystemPrompt() }];
+  for (const m of allMessages) {
+    if (m.role === 'system_notice' || m.role === 'error') continue;
+    if (m.role === 'user' || m.role === 'assistant') {
+      msgs.push({ role: m.role, content: m.content });
+    }
+  }
+  if (processedText !== undefined) {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'user') {
+        msgs[i].content = processedText;
+        break;
+      }
+    }
+  }
+  return msgs;
+}
+
+function renderAllMessages() {
+  chatFlow.innerHTML = '';
+  if (allMessages.length === 0) { showWelcome(); return; }
+  for (const m of allMessages) appendMessageDOM(m);
+  scrollToBottom();
+}
+
+function showWelcome() {
+  const w = document.createElement('div');
+  w.className = 'msg ai';
+  w.innerHTML = `<div class="bubble">你好，我是你的健康数据助理。<br>告诉我你吃了什么、做了什么运动，我来帮你计算热量和蛋白质。<br>也可以直接发食物图片，我会识别后计算。</div>`;
+  chatFlow.appendChild(w);
+}
+
+function appendMessageDOM(msg) {
+  const el = document.createElement('div');
+  if (msg.role === 'user') el.className = 'msg user';
+  else if (msg.role === 'assistant') el.className = 'msg ai';
+  else if (msg.role === 'system_notice') el.className = 'msg system';
+  else if (msg.role === 'error') el.className = 'msg error';
+  else el.className = 'msg ai';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  if (msg.role === 'system_notice' || msg.role === 'error') {
+    bubble.textContent = msg.content;
+  } else {
+    bubble.innerHTML = renderMarkdown(msg.content || '');
+  }
+  if (msg.role === 'user' && msg.images && msg.images.length) {
+    const list = document.createElement('div');
+    list.className = 'img-list';
+    msg.images.forEach(src => {
+      const img = document.createElement('img');
+      img.src = src;
+      list.appendChild(img);
+    });
+    bubble.appendChild(list);
+  }
+  el.appendChild(bubble);
+  chatFlow.appendChild(el);
+  return el;
+}
+
+function scrollToBottom() {
+  chatFlow.scrollTop = chatFlow.scrollHeight;
+}
+function setStatus(text) { statusLine.textContent = text || ''; }
+
+/* ============================================================
+   14. 发送消息主流程
+   ============================================================ */
+async function handleSend() {
+  if (isStreaming) return;
+  const text = messageInput.value.trim();
+  const images = [...pendingImages];
+  if (!text && images.length === 0) return;
+
+  const userMsg = { role: 'user', content: text, images: images.length ? images : undefined, timestamp: Date.now() };
+  await db.add(userMsg);
+  allMessages.push(userMsg);
+  appendMessageDOM(userMsg);
+
+  messageInput.value = '';
+  pendingImages = [];
+  imagePreviews.innerHTML = '';
+  autoResizeInput();
+  scrollToBottom();
+
+  // 图片 OCR
+  let processedText = text;
+  if (images.length > 0) {
+    setStatus('正在识别图片...');
+    try {
+      const ocrResults = [];
+      for (const img of images) ocrResults.push(await ocrImage(img));
+      const ocrJoined = ocrResults.filter(Boolean).join('\n---\n');
+      if (ocrJoined) {
+        processedText = (text ? text + '\n\n' : '') + '【图片识别文字】\n' + ocrJoined;
+        const notice = { role: 'system_notice', content: '📷 图片已识别：\n' + ocrJoined, timestamp: Date.now() };
+        await db.add(notice);
+        allMessages.push(notice);
+        appendMessageDOM(notice);
+        scrollToBottom();
+      } else {
+        processedText = (text ? text + '\n\n' : '') + '（用户发送了一张图片，请根据图片内容判断）';
+      }
+    } catch (e) {
+      const errMsg = { role: 'error', content: '❌ 图片识别失败：' + e.message + '\n若是跨域问题，请用 Live Server 打开。', timestamp: Date.now() };
+      await db.add(errMsg);
+      allMessages.push(errMsg);
+      appendMessageDOM(errMsg);
+      scrollToBottom();
+      setStatus('');
+      return;
+    }
+  }
+
+  const apiMsgs = buildApiMessages(processedText);
+
+  isStreaming = true;
+  setStatus('助理正在回复...');
+  document.getElementById('btnSend').disabled = true;
+
+  const aiMsg = { role: 'assistant', content: '', timestamp: Date.now() };
+  const aiEl = document.createElement('div');
+  aiEl.className = 'msg ai';
+  const aiBubble = document.createElement('div');
+  aiBubble.className = 'bubble';
+  const cursor = document.createElement('span');
+  cursor.className = 'typing-cursor';
+  aiBubble.appendChild(cursor);
+  aiEl.appendChild(aiBubble);
+  chatFlow.appendChild(aiEl);
+  scrollToBottom();
+
+  let fullText = '';
+  try {
+    await streamChat(apiMsgs, (delta) => {
+      fullText += delta;
+      aiBubble.innerHTML = renderMarkdown(fullText);
+      aiBubble.appendChild(cursor);
+      scrollToBottom();
+    });
+    cursor.remove();
+  } catch (e) {
+    cursor.remove();
+    aiBubble.innerHTML = renderMarkdown(fullText);
+    const errBubble = document.createElement('div');
+    errBubble.className = 'msg error';
+    errBubble.innerHTML = `<div class="bubble">❌ 连接失败，请检查设置中的 URL、Key 或模型名。若是跨域问题，请用 Live Server 打开。\n\n详情：${e.message}</div>`;
+    chatFlow.appendChild(errBubble);
+    scrollToBottom();
+  }
+
+  aiMsg.content = fullText;
+  await db.add(aiMsg);
+  allMessages.push(aiMsg);
+
+  // ⚠️ 解析结构化数据更新进度条（唯一来源）
+  const parsed = parseStructuredData(fullText);
+  if (parsed) {
+    const update = {};
+    // 只有 AI 提供了数值才更新，否则保持原值（绝不归零）
+    if (parsed.cal !== null) update.cal = parsed.cal;
+    if (parsed.protein !== null) update.protein = parsed.protein;
+    if (parsed.weight !== null) update.weight = parsed.weight;
+    if (Object.keys(update).length > 0) {
+      State.update(update);
+    }
+  }
+
+  isStreaming = false;
+  setStatus('');
+  document.getElementById('btnSend').disabled = false;
+
+  refreshAllPanels();
+}
+
+/* 统一刷新所有面板 */
+function refreshAllPanels() {
+  updateProgress();
+  updateGoalPanel();
+  drawWeightChart();
+  drawCalChart();
+}
+
+/* ============================================================
+   15. 多周期报表冷启动引擎
+   所有报表在页面打开时检查，跨周期且有数据则自动生成
+   ============================================================ */
+const REPORT_KEYS = {
+  daily: 'laok_last_daily',
+  weekly: 'laok_last_weekly',
+  monthly: 'laok_last_monthly',
+  yearly: 'laok_last_yearly'
+};
+
+function checkAllReports() {
+  return checkDailyReport()
+    .then(() => checkWeeklyReport())
+    .then(() => checkMonthlyReport())
+    .then(() => checkYearlyReport());
+}
+
+async function checkDailyReport() {
+  const now = new Date();
+  if (now.getHours() < 22 || (now.getHours() === 22 && now.getMinutes() < 30)) return;
+  const key = getTodayKey();
+  if (localStorage.getItem(REPORT_KEYS.daily) === key) return;
+  if (!hasMessagesOnDay(key)) return;
+  await generateDailyReport();
+  localStorage.setItem(REPORT_KEYS.daily, key);
+}
+
+async function checkWeeklyReport() {
+  const now = new Date();
+  if (now.getDay() !== 0 && now.getDay() !== 1) return;
+  const key = getWeekKey();
+  if (localStorage.getItem(REPORT_KEYS.weekly) === key) return;
+  if (!hasMessagesInRange(Date.now() - 7*86400000, Date.now())) return;
+  await generateWeeklyReport();
+  localStorage.setItem(REPORT_KEYS.weekly, key);
+}
+
+async function checkMonthlyReport() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const isLastDay = now.getDate() === lastDay;
+  const isFirstDay = now.getDate() === 1;
+  if (!isLastDay && !isFirstDay) return;
+  if (isLastDay && now.getHours() < 21) return;
+  const key = getMonthKey();
+  if (localStorage.getItem(REPORT_KEYS.monthly) === key) return;
+  const ms = new Date(y, m, 1).getTime();
+  const me = new Date(y, m + 1, 0, 23, 59, 59).getTime();
+  if (!hasMessagesInRange(ms, me)) return;
+  await generateMonthlyReport(ms, me);
+  localStorage.setItem(REPORT_KEYS.monthly, key);
+}
+
+async function checkYearlyReport() {
+  const now = new Date();
+  const isDec31 = now.getMonth() === 11 && now.getDate() === 31;
+  const isJan1 = now.getMonth() === 0 && now.getDate() === 1;
+  if (!isDec31 && !isJan1) return;
+  if (isDec31 && now.getHours() < 21) return;
+  const key = getYearKey();
+  if (localStorage.getItem(REPORT_KEYS.yearly) === key) return;
+  const ys = new Date(now.getFullYear(), 0, 1).getTime();
+  const ye = new Date(now.getFullYear(), 11, 31, 23, 59, 59).getTime();
+  if (!hasMessagesInRange(ys, ye)) return;
+  await generateYearlyReport(ys, ye);
+  localStorage.setItem(REPORT_KEYS.yearly, key);
+}
+
+function hasMessagesOnDay(dayKey) {
+  return allMessages.some(m => getDateKey(m.timestamp) === dayKey && (m.role === 'user' || m.role === 'assistant'));
+}
+function hasMessagesInRange(start, end) {
+  return allMessages.some(m => m.timestamp >= start && m.timestamp <= end && (m.role === 'user' || m.role === 'assistant'));
+}
+
+/* 通用流式报表生成器 */
+async function streamReport(title, prompt, useReasoner) {
+  if (isStreaming) return;
+  setStatus(`正在生成${title}...`);
+  const cfg = Config.get();
+  const model = useReasoner ? cfg.reasonerModel : cfg.model;
+  const apiMsgs = [
+    { role: 'system', content: buildSystemPrompt() },
+    { role: 'user', content: prompt }
+  ];
+  const aiMsg = { role: 'assistant', content: '', timestamp: Date.now() };
+  const aiEl = document.createElement('div');
+  aiEl.className = 'msg ai';
+  const aiBubble = document.createElement('div');
+  aiBubble.className = 'bubble';
+  const cursor = document.createElement('span');
+  cursor.className = 'typing-cursor';
+  aiBubble.appendChild(cursor);
+  aiEl.appendChild(aiBubble);
+  chatFlow.appendChild(aiEl);
+  scrollToBottom();
+
+  let fullText = '';
+  try {
+    await streamChat(apiMsgs, (delta) => {
+      fullText += delta;
+      aiBubble.innerHTML = renderMarkdown(`**${title}**\n\n` + fullText);
+      aiBubble.appendChild(cursor);
+      scrollToBottom();
+    }, model);
+    cursor.remove();
+  } catch (e) {
+    cursor.remove();
+    aiBubble.innerHTML = renderMarkdown(`${title}生成失败：${e.message}`);
+  }
+  aiMsg.content = `${title}\n\n${fullText}`;
+  await db.add(aiMsg);
+  allMessages.push(aiMsg);
+  setStatus(`${title}已生成`);
+  setTimeout(() => setStatus(''), 3000);
+}
+
+async function generateDailyReport() {
+  const key = getTodayKey();
+  const todayMsgs = allMessages.filter(m => getDateKey(m.timestamp) === key && (m.role === 'user' || m.role === 'assistant'));
+  const context = todayMsgs.map(m => `${m.role === 'user' ? '用户' : '助理'}：${m.content}`).join('\n');
+  const s = State.get();
+  const prompt = `以下是用户今天的全部记录：\n\n${context}\n\n当前今日累计：热量 ${s.cal} kcal，蛋白质 ${s.protein} g。\n请生成日报：\n1. 今日总热量/蛋白质总结\n2. 运动完成情况\n3. 明日一条建议\n温和简洁。`;
+  await streamReport('📊 今日日报', prompt, false);
+}
+
+async function generateWeeklyReport() {
+  const recentMsgs = allMessages.filter(m => m.timestamp >= Date.now() - 7*86400000 && (m.role === 'user' || m.role === 'assistant'));
+  const context = recentMsgs.map(m => {
+    const d = new Date(m.timestamp);
+    return `[${d.getMonth()+1}/${d.getDate()}] ${m.role === 'user' ? '用户' : '助理'}：${m.content}`;
+  }).join('\n');
+  const prompt = `以下是用户过去7天的记录：\n\n${context}\n\n请生成周报：\n1. 本周热量/蛋白质总览\n2. 体重变化与原因分析\n3. 下周3条核心建议\n用 markdown 分点。`;
+  await streamReport('📈 本周周报', prompt, false);
+}
+
+async function generateMonthlyReport(startTs, endTs) {
+  const msgs = allMessages.filter(m => m.timestamp >= startTs && m.timestamp <= endTs && (m.role === 'user' || m.role === 'assistant'));
+  const context = msgs.map(m => {
+    const d = new Date(m.timestamp);
+    return `[${d.getMonth()+1}/${d.getDate()}] ${m.role === 'user' ? '用户' : '助理'}：${m.content}`;
+  }).join('\n');
+  const prompt = `以下是用户本月记录：\n\n${context}\n\n请用深度分析生成月报：\n1. 本月体重趋势总结\n2. 饮食结构问题分析\n3. 运动习惯分析\n4. 下月目标调整建议\n用 markdown 分点。`;
+  await streamReport('📅 本月月报', prompt, true);
+}
+
+async function generateYearlyReport(startTs, endTs) {
+  const msgs = allMessages.filter(m => m.timestamp >= startTs && m.timestamp <= endTs && (m.role === 'user' || m.role === 'assistant'));
+  const context = msgs.map(m => {
+    const d = new Date(m.timestamp);
+    return `[${d.getMonth()+1}/${d.getDate()}] ${m.role === 'user' ? '用户' : '助理'}：${m.content}`;
+  }).join('\n');
+  const prompt = `以下是用户全年记录：\n\n${context}\n\n请生成年报：\n1. 全年减脂数据总览\n2. 高光时刻\n3. 达成目标进度评估\n4. 新年建议\n用 markdown 分点。`;
+  await streamReport('🗓 全年年报', prompt, true);
+}
+
+/* ============================================================
+   16. 今日进度条（从 State 读取，绝不归零）
+   ============================================================ */
+function updateProgress() {
+  const cfg = Config.get();
+  const s = State.get();
+  document.getElementById('calTarget').textContent = cfg.calTarget;
+  document.getElementById('proTarget').textContent = cfg.proTarget;
+  document.getElementById('calVal').textContent = s.cal;
+  document.getElementById('proVal').textContent = s.protein;
+  document.getElementById('calFill').style.width = Math.min(100, (s.cal / cfg.calTarget) * 100) + '%';
+  document.getElementById('proFill').style.width = Math.min(100, (s.protein / cfg.proTarget) * 100) + '%';
+  document.getElementById('calFill').style.background = s.cal > cfg.calTarget ? 'var(--danger)' : 'var(--cal)';
+}
+
+/* ============================================================
+   17. 目标管理面板
+   ============================================================ */
+function updateGoalPanel() {
+  const cfg = Config.get();
+  const curW = getLatestWeight();
+  const tgtW = cfg.targetWeight;
+  const tgtDate = cfg.targetDate;
+
+  const panel = document.getElementById('goalPanel');
+  const hint = document.getElementById('noWeightHint');
+
+  if (!curW) {
+    panel.style.display = 'none';
+    hint.style.display = 'block';
+    return;
+  }
+  panel.style.display = 'block';
+  hint.style.display = 'none';
+
+  document.getElementById('curWeight').textContent = curW.toFixed(1) + ' kg';
+  document.getElementById('tgtWeight').textContent = tgtW + ' kg';
+
+  const diff = curW - tgtW;
+  document.getElementById('weightDiff').textContent = diff > 0 ? `还需减 ${diff.toFixed(1)} kg` : '已达成 🎉';
+
+  // 进度：起始体重 -> 目标体重
+  const startW = cfg.startWeight;
+  const total = startW - tgtW;
+  const lost = startW - curW;
+  const pct = total > 0 ? Math.max(0, Math.min(100, (lost / total) * 100)) : 100;
+  document.getElementById('goalFill').style.width = pct + '%';
+
+  const meta = document.getElementById('goalMeta');
+  const recCal = calcRecommendedCalories(curW, cfg.height, cfg.age);
+  let html = `建议每日摄入 <span class="highlight">${recCal}</span> kcal`;
+  if (tgtDate) {
+    const daysLeft = calcDaysBetween(getTodayKey(), tgtDate);
+    html += `<br>目标：${tgtDate}（还剩 <span class="highlight">${daysLeft}</span> 天）`;
+  }
+  meta.innerHTML = html;
+}
+
+/* ============================================================
+   18. 体重趋势折线图（Canvas，含目标虚线、X/Y轴、悬停提示）
+   ============================================================ */
+let weightChartData = [];  // 缓存图表数据供悬停检测
+
+function drawWeightChart() {
+  const canvas = document.getElementById('weightCanvas');
+  const ctx = canvas.getContext('2d');
+  const empty = document.getElementById('weightEmpty');
+  const cfg = Config.get();
+
+  const pts = extractWeights();
+  const byDay = {};
+  for (const p of pts) byDay[getDateKey(p.t)] = p.w;
+  const sorted = Object.entries(byDay).sort((a, b) => a[0].localeCompare(b[0]));
+  weightChartData = sorted;
+
+  if (sorted.length === 0) {
+    empty.style.display = 'block';
+    canvas.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  canvas.style.display = 'block';
+
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const W = rect.width, H = rect.height;
+  const padL = 30, padR = 8, padT = 10, padB = 16;
+  const weights = sorted.map(s => s[1]);
+  const allVals = [...weights, cfg.targetWeight];
+  const minW = Math.min(...allVals) - 1;
+  const maxW = Math.max(...allVals) + 1;
+  const range = maxW - minW || 1;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Y 轴刻度线
+  ctx.strokeStyle = '#ececf0';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 3; i++) {
+    const y = padT + (i / 3) * (H - padT - padB);
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(W - padR, y);
+    ctx.stroke();
+  }
+
+  // X 轴
+  ctx.strokeStyle = '#d1d1d6';
+  ctx.beginPath();
+  ctx.moveTo(padL, H - padB);
+  ctx.lineTo(W - padR, H - padB);
+  ctx.stroke();
+
+  // 目标体重虚线
+  const tgtY = padT + (1 - (cfg.targetWeight - minW) / range) * (H - padT - padB);
+  ctx.strokeStyle = '#ff3b30';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(padL, tgtY);
+  ctx.lineTo(W - padR, tgtY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#ff3b30';
+  ctx.font = '9px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(`目标${cfg.targetWeight}`, padL + 2, tgtY - 2);
+
+  // 折线
+  ctx.strokeStyle = '#007aff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  sorted.forEach((s, i) => {
+    const x = padL + (i / Math.max(1, sorted.length - 1)) * (W - padL - padR);
+    const y = padT + (1 - (s[1] - minW) / range) * (H - padT - padB);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // 数据点
+  ctx.fillStyle = '#007aff';
+  sorted.forEach((s, i) => {
+    const x = padL + (i / Math.max(1, sorted.length - 1)) * (W - padL - padR);
+    const y = padT + (1 - (s[1] - minW) / range) * (H - padT - padB);
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Y 轴标签
+  ctx.fillStyle = '#8e8e93';
+  ctx.font = '9px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(maxW.toFixed(0), padL - 3, padT + 6);
+  ctx.fillText(minW.toFixed(0), padL - 3, H - padB - 2);
+}
+
+/* 体重图悬停检测 */
+function onWeightCanvasMove(e) {
+  const canvas = document.getElementById('weightCanvas');
+  const tooltip = document.getElementById('weightTooltip');
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const cfg = Config.get();
+  const sorted = weightChartData;
+  if (sorted.length === 0) { tooltip.style.display = 'none'; return; }
+
+  const W = rect.width, H = rect.height;
+  const padL = 30, padR = 8, padT = 10, padB = 16;
+  const weights = sorted.map(s => s[1]);
+  const allVals = [...weights, cfg.targetWeight];
+  const minW = Math.min(...allVals) - 1;
+  const maxW = Math.max(...allVals) + 1;
+  const range = maxW - minW || 1;
+
+  let found = null;
+  sorted.forEach((s, i) => {
+    const px = padL + (i / Math.max(1, sorted.length - 1)) * (W - padL - padR);
+    if (Math.abs(x - px) < 12) found = { s, px };
+  });
+
+  if (found) {
+    const py = padT + (1 - (found.s[1] - minW) / range) * (H - padT - padB);
+    tooltip.textContent = `${found.s[0]}：${found.s[1]} kg`;
+    tooltip.style.display = 'block';
+    tooltip.style.left = Math.min(found.px + 8, W - 80) + 'px';
+    tooltip.style.top = (py - 24) + 'px';
+  } else {
+    tooltip.style.display = 'none';
+  }
+}
+
+/* ============================================================
+   19. 近7天热量柱状图（含目标线、悬停提示）
+   ============================================================ */
+let calChartData = [];
+
+function drawCalChart() {
+  const canvas = document.getElementById('calCanvas');
+  const ctx = canvas.getContext('2d');
+  const empty = document.getElementById('calEmpty');
+  const cfg = Config.get();
+  const s = State.get();
+
+  // 近7天每天热量（从 State 取今天，从历史 <data> 取过去）
+  const dayCals = {};
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    dayCals[getDateKey(d.getTime())] = 0;
+  }
+  // 今天用 State
+  dayCals[getTodayKey()] = s.cal;
+  // 历史天：从 AI 回复的 <data> 中提取
+  for (const m of allMessages) {
+    if (m.role !== 'assistant') continue;
+    const key = getDateKey(m.timestamp);
+    if (!(key in dayCals) || key === getTodayKey()) continue;
+    const parsed = parseStructuredData(m.content || '');
+    if (parsed && parsed.cal !== null) dayCals[key] = parsed.cal;
+  }
+  const entries = Object.entries(dayCals);
+  calChartData = entries;
+  const hasData = entries.some(([_, v]) => v > 0);
+
+  if (!hasData) {
+    empty.style.display = 'block';
+    canvas.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  canvas.style.display = 'block';
+
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const W = rect.width, H = rect.height;
+  const padL = 28, padR = 6, padT = 8, padB = 16;
+  const maxCal = Math.max(cfg.calTarget * 1.2, ...entries.map(e => e[1])) || 1;
+  const barW = (W - padL - padR) / entries.length;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // 目标线
+  const tgtY = padT + (1 - cfg.calTarget / maxCal) * (H - padT - padB);
+  ctx.strokeStyle = '#ff3b30';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(padL, tgtY);
+  ctx.lineTo(W - padR, tgtY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 柱子
+  entries.forEach(([key, val], i) => {
+    const x = padL + i * barW + barW * 0.15;
+    const bw = barW * 0.7;
+    const h = (val / maxCal) * (H - padT - padB);
+    const y = padT + (H - padT - padB) - h;
+    ctx.fillStyle = val > cfg.calTarget ? '#ff9500' : '#34c759';
+    ctx.fillRect(x, y, bw, h);
+    // 日期标签
+    ctx.fillStyle = '#8e8e93';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    const d = new Date(key);
+    ctx.fillText(`${d.getMonth()+1}/${d.getDate()}`, x + bw / 2, H - 4);
+  });
+}
+
+/* 热量图悬停检测 */
+function onCalCanvasMove(e) {
+  const canvas = document.getElementById('calCanvas');
+  const tooltip = document.getElementById('calTooltip');
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const entries = calChartData;
+  if (entries.length === 0) { tooltip.style.display = 'none'; return; }
+
+  const W = rect.width, H = rect.height;
+  const padL = 28, padR = 6, padT = 8, padB = 16;
+  const cfg = Config.get();
+  const maxCal = Math.max(cfg.calTarget * 1.2, ...entries.map(en => en[1])) || 1;
+  const barW = (W - padL - padR) / entries.length;
+
+  let found = null;
+  entries.forEach(([key, val], i) => {
+    const bx = padL + i * barW + barW * 0.15;
+    const bw = barW * 0.7;
+    if (x >= bx && x <= bx + bw) found = { key, val, bx, bw };
+  });
+
+  if (found) {
+    const h = (found.val / maxCal) * (H - padT - padB);
+    tooltip.textContent = `${found.key}：${found.val} kcal`;
+    tooltip.style.display = 'block';
+    tooltip.style.left = Math.min(found.bx, W - 90) + 'px';
+    tooltip.style.top = (padT + (H - padT - padB) - h - 22) + 'px';
+  } else {
+    tooltip.style.display = 'none';
+  }
+}
+
+/* ============================================================
+   20. 图片处理
+   ============================================================ */
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+async function addPendingImage(file) {
+  if (!file.type.startsWith('image/')) return;
+  const base64 = await fileToBase64(file);
+  pendingImages.push(base64);
+  renderPreviews();
+}
+function renderPreviews() {
+  imagePreviews.innerHTML = '';
+  pendingImages.forEach((src, idx) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'thumb-wrap';
+    const img = document.createElement('img');
+    img.src = src;
+    const btn = document.createElement('button');
+    btn.className = 'thumb-remove';
+    btn.textContent = '×';
+    btn.onclick = () => { pendingImages.splice(idx, 1); renderPreviews(); };
+    wrap.appendChild(img);
+    wrap.appendChild(btn);
+    imagePreviews.appendChild(wrap);
+  });
+}
+
+function autoResizeInput() {
+  messageInput.style.height = 'auto';
+  messageInput.style.height = Math.min(messageInput.scrollHeight, 140) + 'px';
+}
+
+/* ============================================================
+   21. 导出 / 导入 / 清空（导出含配置）
+   ============================================================ */
+async function exportRecords() {
+  const messages = await db.getAll();
+  const config = Config.get();
+  const state = State.get();
+  const data = JSON.stringify({ version: '4.0', config, state, messages }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `laok_backup_${getTodayKey()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus('已导出记录（含配置）');
+  setTimeout(() => setStatus(''), 2000);
+}
+
+async function importRecords(file) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    let messages, config, state;
+    if (Array.isArray(data)) {
+      messages = data;
+    } else {
+      messages = data.messages || [];
+      config = data.config;
+      state = data.state;
+    }
+    if (config) Config.set({ ...Config.get(), ...config });
+    if (state) State.set({ ...State.get(), ...state });
+    await db.bulkAdd(messages);
+    await loadMessages();
+    setStatus('已导入 ' + messages.length + ' 条记录');
+    setTimeout(() => setStatus(''), 2000);
+  } catch (e) {
+    alert('导入失败：' + e.message);
+  }
+}
+
+async function clearHistory() {
+  if (!confirm('确定清空所有聊天记录？')) return;
+  await db.clear();
+  allMessages = [];
+  chatFlow.innerHTML = '';
+  showWelcome();
+  refreshAllPanels();
+  setStatus('历史已清空');
+  setTimeout(() => setStatus(''), 2000);
+}
+
+/* ============================================================
+   22. 侧边栏折叠 / 抽屉（多端响应式）
+   PC：折叠为 60px 图标条；Mobile：抽屉式滑出
+   ============================================================ */
+function setSidebarCollapsed(collapsed) {
+  const app = document.getElementById('appRoot');
+  if (collapsed) app.classList.add('collapsed');
+  else app.classList.remove('collapsed');
+  localStorage.setItem('laok_sidebar_collapsed', collapsed ? '1' : '0');
+  setTimeout(() => { drawWeightChart(); drawCalChart(); }, 280);
+}
+function toggleDrawer(open) {
+  const app = document.getElementById('appRoot');
+  const mask = document.getElementById('drawerMask');
+  if (open) {
+    app.classList.add('drawer-open');
+    mask.classList.add('show');
+  } else {
+    app.classList.remove('drawer-open');
+    mask.classList.remove('show');
+  }
+}
+function initSidebar() {
+  const collapsed = localStorage.getItem('laok_sidebar_collapsed') === '1';
+  if (window.innerWidth > 768) {
+    setSidebarCollapsed(collapsed);
+  }
+}
+
+/* ============================================================
+   23. 设置弹窗
+   ============================================================ */
+function openSettings() {
+  const cfg = Config.get();
+  document.getElementById('setBaseUrl').value = cfg.baseUrl;
+  document.getElementById('setApiKey').value = cfg.apiKey;
+  document.getElementById('setModel').value = cfg.model;
+  document.getElementById('setReasonerModel').value = cfg.reasonerModel;
+  document.getElementById('setOcrModel').value = cfg.ocrModel;
+  document.getElementById('setHeight').value = cfg.height;
+  document.getElementById('setAge').value = cfg.age;
+  document.getElementById('setTargetWeight').value = cfg.targetWeight;
+  document.getElementById('setTargetDate').value = cfg.targetDate;
+  document.getElementById('setCalTarget').value = cfg.calTarget;
+  document.getElementById('setProTarget').value = cfg.proTarget;
+  updateBmrHint();
+  document.getElementById('settingsModal').classList.add('show');
+}
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('show');
+}
+
+function updateBmrHint() {
+  const cfg = Config.get();
+  const curW = getLatestWeight() || cfg.startWeight;
+  const height = parseFloat(document.getElementById('setHeight').value) || cfg.height;
+  const age = parseInt(document.getElementById('setAge').value) || cfg.age;
+  const bmr = calcBMR(curW, height, age);
+  const rec = calcRecommendedCalories(curW, height, age);
+  document.getElementById('bmrInfo').textContent = `BMR：${Math.round(bmr)} kcal（${curW}kg）`;
+  document.getElementById('calHint').textContent = `建议：${rec} kcal（BMR×1.2-500，最低1500）`;
+}
+
+function saveSettings() {
+  const cfg = {
+    baseUrl: document.getElementById('setBaseUrl').value.trim() || DEFAULT_CONFIG.baseUrl,
+    apiKey: document.getElementById('setApiKey').value.trim(),
+    model: document.getElementById('setModel').value,
+    reasonerModel: document.getElementById('setReasonerModel').value,
+    ocrModel: document.getElementById('setOcrModel').value,
+    height: parseFloat(document.getElementById('setHeight').value) || 171,
+    age: parseInt(document.getElementById('setAge').value) || 18,
+    targetWeight: parseFloat(document.getElementById('setTargetWeight').value) || 70,
+    targetDate: document.getElementById('setTargetDate').value,
+    calTarget: parseInt(document.getElementById('setCalTarget').value) || 1800,
+    proTarget: parseInt(document.getElementById('setProTarget').value) || 120,
+    startWeight: Config.get().startWeight
+  };
+  Config.set(cfg);
+  document.getElementById('currentModelLabel').textContent = cfg.model;
+  buildModelMenu();
+  refreshAllPanels();
+  closeSettings();
+  setStatus('设置已保存');
+  setTimeout(() => setStatus(''), 2000);
+}
+
+/* ============================================================
+   24. 模型快速切换下拉
+   ============================================================ */
+const ALL_MODELS = [
+  { group: '主力文本模型', models: [
+    'qwen3.8-flash-next-2','deepseek-v4-flash-ascend1','qwen3.8-chat',
+    'qwen3.8-flash-next','deepseek-flash','deepseek-flash-2',
+    'glm-5.3-flash','smart/default','qwen-chat'
+  ]},
+  { group: '深度推理模型', models: ['qwen3.8-reasoner','qwen-reasoner','smart/reasoning'] }
+];
+
+function buildModelMenu() {
+  const menu = document.getElementById('modelMenu');
+  menu.innerHTML = '';
+  const cfg = Config.get();
+  ALL_MODELS.forEach(g => {
+    const title = document.createElement('div');
+    title.className = 'menu-group-title';
+    title.textContent = g.group;
+    menu.appendChild(title);
+    g.models.forEach(name => {
+      const btn = document.createElement('button');
+      btn.textContent = name;
+      btn.dataset.model = name;
+      if (name === cfg.model) btn.classList.add('active');
+      btn.onclick = () => {
+        switchModel(name);
+        menu.classList.remove('show');
+      };
+      menu.appendChild(btn);
+    });
+  });
+}
+function switchModel(model) {
+  const cfg = Config.get();
+  cfg.model = model;
+  Config.set(cfg);
+  document.getElementById('currentModelLabel').textContent = model;
+  buildModelMenu();
+  setStatus('已切换到 ' + model);
+  setTimeout(() => setStatus(''), 1500);
+}
+
+/* ============================================================
+   25. 语音输入
+   ============================================================ */
+let recognition = null;
+function toggleVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('当前浏览器不支持语音识别，请用 Chrome。'); return; }
+  if (recognition) { recognition.stop(); recognition = null; setStatus(''); return; }
+  recognition = new SR();
+  recognition.lang = 'zh-CN';
+  recognition.continuous = false;
+  recognition.onresult = (e) => {
+    messageInput.value += e.results[0][0].transcript;
+    autoResizeInput();
+  };
+  recognition.onerror = () => { setStatus('语音识别出错'); setTimeout(() => setStatus(''), 2000); };
+  recognition.onend = () => { recognition = null; setStatus(''); };
+  recognition.start();
+  setStatus('🎤 正在聆听...');
+}
+
+/* ============================================================
+   26. 事件绑定
+   ============================================================ */
+function bindEvents() {
+  document.getElementById('btnSend').onclick = handleSend;
+  messageInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  });
+  messageInput.addEventListener('input', autoResizeInput);
+
+  document.querySelectorAll('[data-quick]').forEach(btn => {
+    btn.onclick = () => {
+      messageInput.value = btn.dataset.quick;
+      messageInput.focus();
+      autoResizeInput();
+    };
+  });
+
+  // 图片上传（移动端 capture 调起相机）
+  document.getElementById('btnUploadImg').onclick = () => document.getElementById('imgInput').click();
+  document.getElementById('imgInput').addEventListener('change', (e) => {
+    for (const f of e.target.files) addPendingImage(f);
+    e.target.value = '';
+  });
+  messageInput.addEventListener('paste', (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const f = item.getAsFile();
+        if (f) addPendingImage(f);
+      }
+    }
+  });
+  document.addEventListener('paste', (e) => {
+    if (document.activeElement === messageInput) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const f = item.getAsFile();
+        if (f) addPendingImage(f);
+      }
+    }
+  });
+  const inputArea = document.querySelector('.input-area');
+  inputArea.addEventListener('dragover', (e) => { e.preventDefault(); inputArea.style.background = '#f0f7ff'; });
+  inputArea.addEventListener('dragleave', () => { inputArea.style.background = ''; });
+  inputArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    inputArea.style.background = '';
+    for (const f of e.dataTransfer.files) addPendingImage(f);
+  });
+  document.getElementById('btnPasteImg').onclick = async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        for (const type of item.types) {
+          if (type.startsWith('image/')) {
+            const blob = await item.getType(type);
+            await addPendingImage(new File([blob], 'pasted.png', { type }));
+          }
+        }
+      }
+    } catch { alert('请先复制截图再点击，或直接 Ctrl+V 粘贴。'); }
+  };
+
+  document.getElementById('btnVoice').onclick = toggleVoice;
+
+  // 报表
+  document.getElementById('btnDaily').onclick = generateDailyReport;
+  document.getElementById('btnWeekly').onclick = generateWeeklyReport;
+  document.getElementById('btnMonthly').onclick = () => {
+    const now = new Date();
+    const ms = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const me = new Date(now.getFullYear(), now.getMonth()+1, 0, 23, 59, 59).getTime();
+    generateMonthlyReport(ms, me);
+  };
+  document.getElementById('btnYearly').onclick = () => {
+    const now = new Date();
+    generateYearlyReport(new Date(now.getFullYear(),0,1).getTime(), new Date(now.getFullYear(),11,31,23,59,59).getTime());
+  };
+
+  document.getElementById('btnExport').onclick = exportRecords;
+  document.getElementById('btnClear').onclick = clearHistory;
+  document.getElementById('btnSettings').onclick = openSettings;
+  document.getElementById('btnHeaderSettings').onclick = openSettings;
+
+  document.getElementById('btnImport').onclick = () => document.getElementById('importFile').click();
+  document.getElementById('importFile').addEventListener('change', (e) => {
+    if (e.target.files[0]) importRecords(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  // 侧栏折叠 / 抽屉
+  document.getElementById('btnCollapse').onclick = () => {
+    const app = document.getElementById('appRoot');
+    setSidebarCollapsed(!app.classList.contains('collapsed'));
+  };
+  document.getElementById('btnHamburger').onclick = () => toggleDrawer(true);
+  document.getElementById('drawerMask').onclick = () => toggleDrawer(false);
+
+  // 设置弹窗
+  document.getElementById('setCancel').onclick = closeSettings;
+  document.getElementById('setSave').onclick = saveSettings;
+  document.getElementById('settingsModal').addEventListener('click', (e) => {
+    if (e.target.id === 'settingsModal') closeSettings();
+  });
+  ['setHeight','setAge','setTargetWeight','setTargetDate'].forEach(id => {
+    document.getElementById(id).addEventListener('input', updateBmrHint);
+  });
+
+  // 模型切换
+  document.getElementById('btnModelSwitch').onclick = (e) => {
+    e.stopPropagation();
+    document.getElementById('modelMenu').classList.toggle('show');
+  };
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.model-switch')) {
+      document.getElementById('modelMenu').classList.remove('show');
+    }
+  });
+
+  // 图表悬停
+  document.getElementById('weightCanvas').addEventListener('mousemove', onWeightCanvasMove);
+  document.getElementById('weightCanvas').addEventListener('mouseleave', () => {
+    document.getElementById('weightTooltip').style.display = 'none';
+  });
+  document.getElementById('calCanvas').addEventListener('mousemove', onCalCanvasMove);
+  document.getElementById('calCanvas').addEventListener('mouseleave', () => {
+    document.getElementById('calTooltip').style.display = 'none';
+  });
+
+  // 窗口变化
+  window.addEventListener('resize', () => {
+    drawWeightChart();
+    drawCalChart();
+    // 移动端窗口变化时确保折叠态不影响抽屉
+    if (window.innerWidth <= 768) {
+      document.getElementById('appRoot').classList.remove('collapsed');
+    }
+  });
+}
+
+/* ============================================================
+   27. 初始化
+   ============================================================ */
+async function init() {
+  const cfg = Config.get();
+  document.getElementById('currentModelLabel').textContent = cfg.model;
+
+  // 默认目标日期：3个月后
+  if (!cfg.targetDate) {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 3);
+    cfg.targetDate = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    Config.set(cfg);
+  }
+
+  buildModelMenu();
+  initSidebar();
+  bindEvents();
+  await loadMessages();
+
+  if (!cfg.apiKey) {
+    const notice = { role: 'system_notice', content: '⚙️ 首次使用请点击「设置」填入 API Key。', timestamp: Date.now() };
+    appendMessageDOM(notice);
+    openSettings();
+  }
+
+  await checkAllReports();
+}
+
+init();
+</script>
+</body>
+</html>
